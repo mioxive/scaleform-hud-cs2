@@ -38,6 +38,6 @@ fresh checkout builds without python.
 
 ## JS
 
-JS is packed directly into the DLL at build time â€” `tools\make_assets.py` reads every file
+JS is packed directly into the DLL at build time — `tools\make_assets.py` reads every file
 in `js\` and makes `hud_scripts.h` - a sorted array of byte blobs. The DLL loads them in
 alphabetical order from the in-memory table, so there are no external files to ship.
