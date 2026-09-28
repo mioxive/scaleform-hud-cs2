@@ -1,0 +1,23 @@
+# Visual Studio cache / build output
+.vs/
+x64/
+build/
+cmake-build-*/
+out/
+
+# User-specific project settings
+*.user
+*.suo
+
+# Intermediate build files
+*.obj
+*.pdb
+*.ilk
+*.idb
+*.ipdb
+*.iobj
+*.tlog
+
+# Python
+__pycache__/
+*.pyc
