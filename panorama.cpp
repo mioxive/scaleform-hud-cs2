@@ -1,15 +1,10 @@
 #include "hud.h"
 #include "patterns.h"
 
+#include <MinHook.h>
 #include <cstring>
 
-namespace
-{
-    void** g_vtableAllocation{};
-    void** g_hookedVTable{};
-}
-
-bool waitForModules(Module& panorama, Module& client)
+bool waitForModules(sdk::Module& panorama, sdk::Module& client)
 {
     HMODULE panoramaHandle{};
     HMODULE clientHandle{};
@@ -29,24 +24,24 @@ bool waitForModules(Module& panorama, Module& client)
         return false;
     }
 
-    panorama = Module{ panoramaHandle };
-    client = Module{ clientHandle };
+    panorama = sdk::Module{ panoramaHandle };
+    client = sdk::Module{ clientHandle };
 
     return true;
 }
 
 
-void* findEngine(const Module& panorama)
+void* findEngine(const sdk::Module& panorama)
 {
     void** engineSlot{};
 
-    for (const char* pattern : kEngineGlobalPatterns)
+    for (const char* pattern : patterns::kEngineGlobals)
     {
         auto* hit = panorama.find(pattern);
         if (!hit)
             continue;
 
-        auto** slot = relativeToAbsolute<void**>(hit + kEngineGlobalDisplacement);
+        auto** slot = relativeToAbsolute<void**>(hit + patterns::kEngineGlobalOffset);
         if (!panorama.has(slot))
             continue;
 
@@ -73,10 +68,10 @@ void* findEngine(const Module& panorama)
 }
 
 
-bool resolveVTable(const Module& panorama, void* engine, VTable& layout)
+bool resolveVTable(const sdk::Module& panorama, void* engine, sdk::VTable& layout)
 {
-    auto* runScriptCode = panorama.find(kRunScriptPattern);
-    auto* runFrameCode = panorama.find(kRunFramePattern);
+    auto* runScriptCode = panorama.find(patterns::kRunScript);
+    auto* runFrameCode = panorama.find(patterns::kRunFrame);
 
     if (!runScriptCode || !runFrameCode) 
     {
@@ -87,45 +82,45 @@ bool resolveVTable(const Module& panorama, void* engine, VTable& layout)
     layout.vtable = *reinterpret_cast<void***>(engine);
 
     layout.slots = 0;
-    layout.runScriptIndex = kMaxVTableSlots;
-    layout.runFrameIndex = kMaxVTableSlots;
+    layout.runScriptIndex = patterns::kMaxVTableSlots;
+    layout.runFrameIndex = patterns::kMaxVTableSlots;
 
-    while (layout.slots < kMaxVTableSlots && panorama.has(layout.vtable[layout.slots]))
+    while (layout.slots < patterns::kMaxVTableSlots && panorama.has(layout.vtable[layout.slots]))
     {
-        if (layout.vtable[layout.slots] == runScriptCode && layout.runScriptIndex == kMaxVTableSlots)
+        if (layout.vtable[layout.slots] == runScriptCode && layout.runScriptIndex == patterns::kMaxVTableSlots)
             layout.runScriptIndex = layout.slots;
 
-        if (layout.vtable[layout.slots] == runFrameCode && layout.runFrameIndex == kMaxVTableSlots)
+        if (layout.vtable[layout.slots] == runFrameCode && layout.runFrameIndex == patterns::kMaxVTableSlots)
             layout.runFrameIndex = layout.slots;
 
         ++layout.slots;
     }
 
-    if (layout.runScriptIndex == kMaxVTableSlots || layout.runFrameIndex == kMaxVTableSlots) 
+    if (layout.runScriptIndex == patterns::kMaxVTableSlots || layout.runFrameIndex == patterns::kMaxVTableSlots) 
     {
         logLine("[hud] that vtable is not the UI engine's, refusing to hook\n");
         return false;
     }
 
-    if (layout.runScriptIndex != kRunScriptIndexHint || layout.runFrameIndex != kRunFrameIndexHint)
-        logLine("[hud] slot numbers moved (were %zu / %zu), using the ones found\n", kRunScriptIndexHint, kRunFrameIndexHint);
+    if (layout.runScriptIndex != patterns::kRunScriptIndex || layout.runFrameIndex != patterns::kRunFrameIndex)
+        logLine("[hud] slot numbers moved (were %zu / %zu), using the ones found\n", patterns::kRunScriptIndex, patterns::kRunFrameIndex);
 
     return true;
 }
 
-bool findPanelGlobals(const Module& client)
+bool findPanelGlobals(const sdk::Module& client)
 {
     struct PanelPattern 
     {
         const char* signature;
         int offset;
-        CPanel2D*** out;
+        sdk::CPanel2D*** out;
         const char* what;
     };
 
     const PanelPattern panelPatterns[] {
-        {"EC ?? 48 8B 05 ?? ?? ?? ?? 48 8D 15 ?? ?? ?? ?? 48 8B 48 08", 5, &g_mainMenu, "main menu"},
-        {"48 89 35 ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 85", 3, &g_hudRoot, "CSGOHud"}
+        {"EC ?? 48 8B 05 ?? ?? ?? ?? 48 8D 15 ?? ?? ?? ?? 48 8B 48 08", 5, &hud::g_mainMenu, "main menu"},
+        {"48 89 35 ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 85", 3, &hud::g_hudRoot, "CSGOHud"}
     };
 
     for (const auto& [signature, offset, out, what] : panelPatterns)
@@ -136,10 +131,10 @@ bool findPanelGlobals(const Module& client)
             continue;
         }
 
-        *out = relativeToAbsolute<CPanel2D**>(hit + offset);
+        *out = relativeToAbsolute<sdk::CPanel2D**>(hit + offset);
     }
 
-    if (!g_mainMenu && !g_hudRoot)
+    if (!hud::g_mainMenu && !hud::g_hudRoot)
     {
         logLine("[hud] neither panel global was found, refusing to hook\n");
         return false;
@@ -149,22 +144,36 @@ bool findPanelGlobals(const Module& client)
 }
 
 
-void installFrameHook(const VTable& layout)
+void installFrameHook(const sdk::VTable& layout, void* engine)
 {
-    g_vtableAllocation = new void*[layout.slots + 1];
-    std::memcpy(g_vtableAllocation, layout.vtable - 1, (layout.slots + 1) * sizeof(void*));
+    void* target = layout.vtable[layout.runFrameIndex];
 
-    g_hookedVTable = g_vtableAllocation + 1;
-    g_hookedVTable[layout.runFrameIndex] = reinterpret_cast<void*>(&hkRunFrame);
+    const MH_STATUS initialized = MH_Initialize();
 
-    *reinterpret_cast<void***>(g_engine) = g_hookedVTable;
+    if (initialized != MH_OK && initialized != MH_ERROR_ALREADY_INITIALIZED)
+    {
+        logLine("[hud] MinHook init failed\n");
+        return;
+    }
 
-    logLine("[hud] RunFrame hooked, waiting for the main menu panel\n");
+    if (MH_CreateHook(target, reinterpret_cast<void*>(&hkRunFrame), reinterpret_cast<void**>(&hud::g_runFrame)) != MH_OK)
+    {
+        logLine("[hud] MH_CreateHook failed\n");
+        return;
+    }
+
+    if (MH_EnableHook(target) != MH_OK)
+    {
+        logLine("[hud] MH_EnableHook failed\n");
+        return;
+    }
+
+    logLine("[hud] RunFrame hooked at %p, waiting for the main menu panel\n", target);
 }
 
 
-CUIPanel* panelOf(CPanel2D** global)
+sdk::CUIPanel* hud::isPanelOf(sdk::CPanel2D** global)
 {
-    CPanel2D* clientPanel = global ? *global : nullptr;
+    sdk::CPanel2D* clientPanel = global ? *global : nullptr;
     return clientPanel ? clientPanel->uiPanel : nullptr;
 }

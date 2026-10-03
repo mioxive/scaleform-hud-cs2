@@ -12,20 +12,12 @@
 
 namespace
 {
-    using ParseImageUrlFn = void (*)(void* out, const char* url);
-    ParseImageUrlFn g_oParseImageUrl{};
-
-    constexpr const char* kHudScheme = "file://{hud}/";
+    sdk::ParseImageUrlFn oParseImageUrl{};
+    
 
 #ifndef _DEBUG
-    struct Asset
-    {
-        const char* file;
-        const unsigned char* bytes;
-        std::size_t size;
-    };
 
-    constexpr Asset assets[] {
+    constexpr hud::Asset assets[] {
         {"notice_bar.png", hud_assets::kNoticeBarPng, sizeof(hud_assets::kNoticeBarPng)},
         {"topleft.png", hud_assets::kTopLeftPng, sizeof(hud_assets::kTopLeftPng)},
         {"alive_ct.png", hud_assets::kAliveCtPng, sizeof(hud_assets::kAliveCtPng)},
@@ -59,7 +51,7 @@ namespace
     {
         static const std::string folder = [] {
 #ifdef _DEBUG
-            const std::string dir = hudModuleDir();
+            const std::string dir = getOwnModuleDir();
 
             for (const char* subpath : {"\\..\\..\\art", "\\art"})
             {
@@ -103,8 +95,8 @@ namespace
 
     void hkParseImageUrl(void* out, const char* url)
     {
-        const std::size_t schemeLen = std::strlen(kHudScheme);
-        if (url && std::strncmp(url, kHudScheme, schemeLen) == 0)
+        const std::size_t schemeLen = std::strlen(hud::hudScheme);
+        if (url && std::strncmp(url, hud::hudScheme, schemeLen) == 0)
         {
             const char* name = url + schemeLen;
             const char* query = std::strchr(name, '?');
@@ -112,22 +104,22 @@ namespace
 
             char rewritten[1024];
             std::snprintf(rewritten, sizeof(rewritten), "raw://%s\\%.*s", assetsFolder().c_str(), nameLen, name);
-            g_oParseImageUrl(out, rewritten);
+            oParseImageUrl(out, rewritten);
             return;
         }
 
-        g_oParseImageUrl(out, url);
+        oParseImageUrl(out, url);
     }
 }
 
 
-void installImageHook(const Module& panorama)
+void installImageHook(const sdk::Module& panorama)
 {
 #ifndef _DEBUG
     extractAssets();
 #endif
 
-    auto* target = panorama.find(kImageUrlPattern);
+    auto* target = panorama.find(patterns::kImageUrl);
 
     if (!target) {
         logLine("[hud] ParseImageURL pattern not found\n");
@@ -142,7 +134,7 @@ void installImageHook(const Module& panorama)
         return;
     }
 
-    if (MH_CreateHook(target, reinterpret_cast<void*>(&hkParseImageUrl), reinterpret_cast<void**>(&g_oParseImageUrl)) != MH_OK)
+    if (MH_CreateHook(target, reinterpret_cast<void*>(&hkParseImageUrl), reinterpret_cast<void**>(&oParseImageUrl)) != MH_OK)
     {
         logLine("[hud] MH_CreateHook failed\n");
         return;

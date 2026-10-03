@@ -14,7 +14,7 @@ namespace
     const std::string& scriptsFolder()
     {
         static const std::string folder = [] {
-            const std::string dir = hudModuleDir();
+            const std::string dir = getOwnModuleDir();
 
             for (const char* subpath : {"\\..\\..\\js", "\\js"})
             {
@@ -47,7 +47,7 @@ namespace
     }
 }
 
-void loadScripts(void* engine, CUIPanel* panel)
+void hud::loadScripts(void* engine, sdk::CUIPanel* panel)
 {
     const std::string& folder = scriptsFolder();
 
@@ -83,7 +83,7 @@ void loadScripts(void* engine, CUIPanel* panel)
         js += source;
         js += "\n} catch (error) { $.Msg(\"[hud] " + name + ": \" + error); }";
 
-        g_runScript(engine, panel, js.c_str(), originFile, noCache);
+        hud::g_runScript(engine, panel, js.c_str(), hud::originFile, hud::noCache);
         logLine("[hud] ran %s (%zu bytes)\n", name.c_str(), source.size());
     }
 
@@ -99,7 +99,7 @@ namespace
     constexpr const char* header = "var contextPanel = $.GetContextPanel();\n";
 }
 
-void loadScripts(void* engine, CUIPanel* panel)
+void hud::loadScripts(void* engine, sdk::CUIPanel* panel)
 {
     for (std::size_t i = 0; i < hud_scripts::kScriptCount; ++i)
     {
@@ -110,7 +110,7 @@ void loadScripts(void* engine, CUIPanel* panel)
         js.append(reinterpret_cast<const char*>(script.bytes), script.size);
         js += "\n} catch (error) { $.Msg(\"[hud] " + std::string{script.name} + ": \" + error); }";
 
-        g_runScript(engine, panel, js.c_str(), originFile, noCache);
+        hud::g_runScript(engine, panel, js.c_str(), hud::originFile, hud::noCache);
 
         logLine("[hud] ran %s (%zu bytes)\n", script.name, script.size);
     }
