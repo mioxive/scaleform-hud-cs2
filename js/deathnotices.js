@@ -11,6 +11,20 @@ var KillerBar = '#000000e6';
 var VictimBar = '#a81313ff';
 var NoticeRoot = null;
 
+var NoticeWeaponName = function (icon) {
+	var src = '';
+	try {
+		src = String(icon.src || '');
+	} catch (error) {
+		return '';
+	}
+	if (!src)
+		return '';
+	var tail = src.substring(src.lastIndexOf('/') + 1);
+	tail = tail.replace(/\.(vsvg|vtex|svg|png|vsvg_c|vtex_c)$/i, '');
+	return tail;
+};
+
 var StyleOneNotice = function (notice, force) {
 	var isKiller = notice.BHasClass('DeathNotice_Killer');
 	var isVictim = notice.BHasClass('DeathNotice_Victim');
@@ -32,6 +46,13 @@ var StyleOneNotice = function (notice, force) {
 		if (icon.id === 'Weapon') {
 			icon.style.transform = 'translateY(5px)';
 			icon.style.uiScale = WeaponIconScale;
+			var wpn = NoticeWeaponName(icon);
+			var file = (typeof WpnIconFile === 'function') ? WpnIconFile(wpn) : null;
+			if (file && icon.WpnSrc !== file) {
+				icon.WpnSrc = file;
+				icon.SetImage(ArtUrl(file));
+				icon.style.washColor = '#ffffff';
+			}
 		} else {
 			icon.style.height = ExtraIconHeight;
 			icon.style.transform = 'translateY(0px)';

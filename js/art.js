@@ -8,7 +8,33 @@ var ArtFiles = {
 	killbadge: 'kill_badge.png', winpanelct: 'win_ct.png', winpanelt: 'win_t.png',
 	alerticon: 'alert_icon.png', yesvote: 'yesvote.png', novote: 'novote.png',
 	defuseicon: 'defuse_icon.png', joinplate: 'fade.png',
-	gotvct: 'gotv_ct.png', gotvt: 'gotv_t.png'
+	gotvct: 'gotv_ct.png', gotvt: 'gotv_t.png',
+	killicon: 'kill_icon.png', killiconhs: 'kill_icon_headshot.png',
+	killoutline: 'kill_icon_outline.png', winstar: 'wp18_star.png'
+};
+
+var WpnIconFiles = {
+	ak47: 'wpn_ak47', awp: 'wpn_awp', ssg08: 'wpn_ssg08',
+	m4a4: 'wpn_m4a1', m4a1: 'wpn_m4a1',
+	m4a1_silencer: 'wpn_m4a1_silencer', m4a1_silencer_off: 'wpn_m4a1_silencer_off',
+	deagle: 'wpn_deagle', revolver: 'wpn_deagle',
+	usp_silencer: 'wpn_hkp2000', usp_silencer_off: 'wpn_hkp2000',
+	hkp2000: 'wpn_hkp2000', p2000: 'wpn_p2000', p250: 'wpn_p2000',
+	cz75a: 'wpn_p2000', fiveseven: 'wpn_p2000', tec9: 'wpn_p2000',
+	glock: 'wpn_p2000', elite: 'wpn_elite',
+	mag7: 'wpn_mag7', sawedoff: 'wpn_mag7', nova: 'wpn_mag7', xm1014: 'wpn_mag7',
+	knife: 'wpn_knife', knife_t: 'wpn_knife_t', bayonet: 'wpn_bayonet',
+	knife_flip: 'wpn_knife_flip', knife_gut: 'wpn_knife_gut',
+	knife_karambit: 'wpn_knife_karambit', knife_m9_bayonet: 'wpn_knife_m9_bayonet',
+	knife_tactical: 'wpn_knife_tactical', knife_butterfly: 'wpn_knife_butterfly',
+	knife_push: 'wpn_knife_push', knife_survival_bowie: 'wpn_knife_survival_bowie',
+	knife_bowie: 'wpn_knife_bowie',
+	c4: 'wpn_c4_', planted_c4: 'wpn_c4_',
+	flashbang: 'wpn_flashbang2', hegrenade: 'wpn_hegrenade2',
+	frag_grenade: 'wpn_frag_grenade2', smokegrenade: 'wpn_smokegrenade2',
+	decoy: 'wpn_decoy2', molotov: 'wpn_molotov2', incgrenade: 'wpn_incgrenade2',
+	firebomb: 'wpn_firebomb2', tagrenade: 'wpn_flashbang2',
+	diversion: 'wpn_decoy2', breachcharge: 'wpn_c4_'
 };
 
 var ArtNonce = (typeof ArtNonce === 'undefined' ? 1 : ArtNonce);
@@ -54,6 +80,25 @@ var PaintArt = function (panel, token, extra) {
 	panel.ArtSlot = ArtPainted.length;
 	ArtPainted.push({panel: panel, id: panel.id, token: token, extra: extra});
 	return true;
+};
+
+
+var WpnIconFile = function (weaponName) {
+	if (!weaponName)
+		return null;
+	var key = String(weaponName).toLowerCase()
+		.replace(/^weapon_/, '').replace(/^item_/, '');
+	var token = WpnIconFiles[key];
+	if (!token)
+		return null;
+	return token + '.png';
+};
+
+var PaintWeapon = function (panel, weaponName, extra) {
+	var token = WpnIconFile(weaponName);
+	if (!token)
+		return false;
+	return PaintArt(panel, token, extra);
 };
 
 var RearmArt = function (why) {

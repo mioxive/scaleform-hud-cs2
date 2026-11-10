@@ -1,23 +1,33 @@
 var Kc = {
-
-	badgeWidth: 23,
-	badgeHeight: 23,
-	pitch: 26,
+	cardWidth: 24,
+	cardHeight: 24,
+	cardGap: 1,
 	slots: 5,
-	firstX: 1619,
-	anchorRight: 1694,
+	rowX: 6,
+	rowY: 3,
+	rowWidth: 126,
+	rowHeight: 28,
+	moreWidth: 64,
+	moreHeight: 24,
+	moreIcon: 24,
+	moreTimesX: 28,
+	moreCountX: 39,
+	countSize: '20px',
+	countColor: '#f0eee4',
 	fxPark: -3000,
-	bottom: 1080 - 1050,
-	skullBox: 17,
-	skullSrc: '',
-	skullY: -1,
-	skullX: 0,
-	countSize: '17px',
-	countColor: '#e8e4d2',
+	popMs: 330,
 };
 
-var KcRowRight = 1920 - Kc.anchorRight - (Kc.pitch - Kc.badgeWidth);
 var KcHiddenIds = ['hud-HA__kills', 'hud-HA__kills--fx', 'hud-HA__Specialkills--fx'];
+
+var KcSet = function (panel, property, value) {
+	if (!panel)
+		return;
+	try {
+		panel.style[property] = value;
+	} catch (error) {
+	}
+};
 
 var KcHideStock = function () {
 	var cards = null;
@@ -25,7 +35,7 @@ var KcHideStock = function () {
 		var panel = contextPanel.FindChildTraverse(KcHiddenIds[at]);
 		if (!panel)
 			continue;
-		panel.style.visibility = 'collapse';
+		KcSet(panel, 'visibility', 'collapse');
 		if (at === 0)
 			cards = panel;
 	}
@@ -33,117 +43,152 @@ var KcHideStock = function () {
 };
 
 var KcParkFx = function () {
-	var parked = 0;
 	for (var at = 1; at < KcHiddenIds.length; ++at) {
 		var fx = contextPanel.FindChildTraverse(KcHiddenIds[at]);
 		if (fx && !fx.BHasClass('fx-parked')) {
 			fx.AddClass('fx-parked');
-			fx.style.y = Kc.fxPark + 'px';
-			++parked;
+			KcSet(fx, 'y', Kc.fxPark + 'px');
 		}
 	}
-	return parked;
 };
 
 var KcListeners = ['HUD--on-kill--listener', 'HUD--health--on-damage--listener',
 	'HUD--has-armor--on-pickup--listener', 'HUD--on-reload--listener',
 	'HUD--weapon--on-change--listener', 'HUD--weapon--on-fired--listener'];
 
-var KcGlowNoted = false;
-
 var KcNoGlow = function (cards) {
 	var owner = cards.GetParent();
 	if (!owner)
 		return;
-
-	var stripped = 0;
 	for (var at = 0; at < KcListeners.length; ++at) {
 		var listener = KcListeners[at];
 		var trigger = listener.substring(0, listener.length - '--listener'.length);
-		var hits = owner.FindChildrenWithClassTraverse(listener);
-		for (var one = 0; one < hits.length; ++one) {
-			hits[one].RemoveClass(listener);
-			++stripped;
-		}
-		var lit = owner.FindChildrenWithClassTraverse(trigger);
-		for (var two = 0; two < lit.length; ++two) {
-			lit[two].RemoveClass(trigger);
-			++stripped;
-		}
+		for (var hit of owner.FindChildrenWithClassTraverse(listener))
+			hit.RemoveClass(listener);
+		for (var lit of owner.FindChildrenWithClassTraverse(trigger))
+			lit.RemoveClass(trigger);
 	}
+};
 
-	if (stripped && !KcGlowNoted) {
-		KcGlowNoted = true;
+var KcHasClassUp = function (panel, name) {
+	for (var at = panel; at; at = at.GetParent()) {
+		if (at.BHasClass(name))
+			return true;
 	}
+	return false;
 };
 
 var KcCount = function (cards) {
-	for (var at = cards; at; at = at.GetParent()) {
-		if (at.BHasClass('HUD--NumKills--extra'))
-			return Kc.slots + 1;
-		for (var n = Kc.slots; n >= 1; --n)
-			if (at.BHasClass('HUD--NumKills--' + n))
-				return n;
-	}
+	if (KcHasClassUp(cards, 'HUD--NumKills--extra'))
+		return Kc.slots + 1;
+	for (var n = Kc.slots; n >= 1; --n)
+		if (KcHasClassUp(cards, 'HUD--NumKills--' + n))
+			return n;
 	return 0;
 };
 
-var KcOldRow = contextPanel.FindChildTraverse('Kills');
-if (KcOldRow) {
-	KcOldRow.DeleteAsync(0);
-}
+var KcHeadshot = function (cards, index) {
+	return KcHasClassUp(cards, 'HUD--Kill' + index + '--headshot');
+};
 
-var KcBuild = function () {
-	var row = $.CreatePanel('Panel', contextPanel, 'Kills');
+var KcOldRow = contextPanel.FindChildTraverse('Kills');
+if (KcOldRow)
+	KcOldRow.DeleteAsync(0);
+
+var KcParent = function () {
+	return contextPanel.FindChildTraverse('Ammo') || contextPanel;
+};
+
+var KcRow = null;
+var KcLastCount = -1;
+
+var KcBuild = function (parent) {
+	var row = $.CreatePanel('Panel', parent, 'Kills');
 	row.hittest = false;
-	row.style.horizontalAlign = 'right';
-	row.style.verticalAlign = 'bottom';
-	row.style.marginRight = KcRowRight + 'px';
-	row.style.marginBottom = Kc.bottom + 'px';
-	row.style.width = 'fit-children';
-	row.style.height = Kc.badgeHeight + 'px';
+	row.style.width = Kc.rowWidth + 'px';
+	row.style.height = Kc.rowHeight + 'px';
+	row.style.x = Kc.rowX + 'px';
+	row.style.y = Kc.rowY + 'px';
+	row.style.horizontalAlign = 'left';
+	row.style.verticalAlign = 'top';
 	row.style.flowChildren = 'right';
-	row.style.zIndex = '21';
-	var more = $.CreatePanel('Label', row, 'KillMore');
+	row.style.overflow = 'noclip';
+	row.style.zIndex = '5';
+	row.style.visibility = 'collapse';
+	var more = $.CreatePanel('Panel', row, 'KillMore');
 	more.hittest = false;
-	more.style.fontFamily = 'Stratum2';
-	more.style.fontWeight = 'bold';
-	more.style.fontSize = Kc.countSize;
-	more.style.color = Kc.countColor;
-	more.style.verticalAlign = 'center';
-	more.style.textShadow = '1px 1px 0px #000000';
-	more.style.marginRight = '2px';
+	more.style.width = Kc.moreWidth + 'px';
+	more.style.height = Kc.moreHeight + 'px';
 	more.style.visibility = 'collapse';
-	more.text = '+';
+	PaintArt(more, 'killicon', {size: Kc.cardWidth + 'px ' + Kc.cardHeight + 'px'});
+	var moreIcon = $.CreatePanel('Panel', more, 'KillMoreIcon');
+	moreIcon.hittest = false;
+	moreIcon.style.width = Kc.moreIcon + 'px';
+	moreIcon.style.height = Kc.moreIcon + 'px';
+	moreIcon.style.x = '0px';
+	moreIcon.style.y = '0px';
+	PaintArt(moreIcon, 'killoutline', {size: Kc.moreIcon + 'px ' + Kc.moreIcon + 'px'});
+	var moreTimes = $.CreatePanel('Label', more, 'KillMoreTimes');
+	moreTimes.hittest = false;
+	moreTimes.style.x = Kc.moreTimesX + 'px';
+	moreTimes.style.y = '0px';
+	moreTimes.style.verticalAlign = 'center';
+	moreTimes.style.fontFamily = 'Stratum2';
+	moreTimes.style.fontSize = Kc.countSize;
+	moreTimes.style.fontWeight = 'bold';
+	moreTimes.style.color = Kc.countColor;
+	moreTimes.style.textShadow = '1px 1px 0px #000000';
+	moreTimes.text = 'x';
+	var moreCount = $.CreatePanel('Label', more, 'KillMoreCount');
+	moreCount.hittest = false;
+	moreCount.style.x = Kc.moreCountX + 'px';
+	moreCount.style.y = '0px';
+	moreCount.style.verticalAlign = 'center';
+	moreCount.style.fontFamily = 'Stratum2';
+	moreCount.style.fontSize = Kc.countSize;
+	moreCount.style.fontWeight = 'bold';
+	moreCount.style.color = Kc.countColor;
+	moreCount.style.textShadow = '1px 1px 0px #000000';
 
 	for (var at = 0; at < Kc.slots; ++at) {
-		var badge = $.CreatePanel('Panel', row, 'Kill' + at);
-		badge.hittest = false;
-		badge.style.width = Kc.badgeWidth + 'px';
-		badge.style.height = Kc.badgeHeight + 'px';
-		badge.style.marginRight = (Kc.pitch - Kc.badgeWidth) + 'px';
-		badge.style.visibility = 'collapse';
-		PaintArt(badge, 'killbadge');
-		var skull = $.CreatePanel('Panel', badge, 'KillSkull' + at);
-		skull.hittest = false;
-		skull.style.width = Kc.skullBox + 'px';
-		skull.style.height = Kc.skullBox + 'px';
-		skull.style.horizontalAlign = 'center';
-		skull.style.verticalAlign = 'center';
-		skull.style.x = Kc.skullX + 'px';
-		skull.style.y = Kc.skullY + 'px';
-		if (Kc.skullSrc) {
-			skull.style.backgroundImage = 'url("' + Kc.skullSrc + '")';
-			skull.style.backgroundSize = 'contain';
-			skull.style.backgroundRepeat = 'no-repeat';
-			skull.style.backgroundPosition = 'center center';
-			skull.style.washColor = '#ffffff';
-		} else {
-			PaintArt(skull, 'aliveskull', {size: 'contain'});
-		}
+		var card = $.CreatePanel('Panel', row, 'Kill' + (at + 1));
+		card.hittest = false;
+		card.style.width = Kc.cardWidth + 'px';
+		card.style.height = Kc.cardHeight + 'px';
+		card.style.marginRight = Kc.cardGap + 'px';
+		card.style.overflow = 'noclip';
+		card.style.visibility = 'collapse';
+		card._kcHeadshot = false;
+		PaintArt(card, 'killicon', {size: '100% 100%'});
 	}
-
 	return row;
+};
+
+var KcSetCardArt = function (card, headshot) {
+	if (card._kcHeadshot === headshot)
+		return;
+	card._kcHeadshot = headshot;
+	if (headshot) {
+		PaintArt(card, 'killiconhs', {size: '22px 22px', position: 'center center'});
+	} else {
+		PaintArt(card, 'killicon', {size: '100% 100%', position: 'center center'});
+	}
+};
+
+var KcPop = function (card) {
+	card.style.transitionProperty = 'pre-transform-scale2d, opacity';
+	card.style.transitionDuration = '0.12s';
+	card.style.transitionTimingFunction = 'ease-out';
+	card.style.transitionDelay = '0s';
+	card.style.preTransformScale2d = '0.4';
+	card.style.opacity = '0.0';
+	$.Schedule(0.0, function () {
+		card.style.preTransformScale2d = '1.25';
+		card.style.opacity = '1.0';
+	});
+	$.Schedule(0.12, function () {
+		card.style.preTransformScale2d = '1.0';
+	});
 };
 
 var KcApply = function () {
@@ -152,50 +197,71 @@ var KcApply = function () {
 		return false;
 	KcNoGlow(cards);
 
-	var row = contextPanel.FindChildTraverse('Kills');
-	if (!row)
+	var parent = KcParent();
+	if (KcRow && KcRow.IsValid() && KcRow.GetParent() !== parent)
+		KcRow.SetParent(parent);
+	if (!KcRow || !KcRow.IsValid())
 		return false;
+
 	var kills = KcCount(cards);
-	var marker = 'kills-' + kills;
-	if (row.BHasClass(marker))
-		return true;
+	var extra = KcHasClassUp(cards, 'HUD--NumKills--extra');
+	var shown = extra ? 0 : Math.min(kills, Kc.slots);
 
-	for (var stale = 0; stale <= Kc.slots + 1; ++stale)
-		row.RemoveClass('kills-' + stale);
-	row.AddClass(marker);
-
-	var shown = Math.min(kills, Kc.slots);
-	for (var at = 0; at < Kc.slots; ++at) {
-		var badge = row.FindChildTraverse('Kill' + at);
-		if (badge)
-			badge.style.visibility = at < shown ? 'visible' : 'collapse';
+	if (KcRow.BHasClass('kc-active') !== (kills > 0)) {
+		KcRow.SetHasClass('kc-active', kills > 0);
+		KcRow.style.visibility = kills > 0 ? 'visible' : 'collapse';
 	}
-	var more = row.FindChildTraverse('KillMore');
-	if (more)
-		more.style.visibility = kills > Kc.slots ? 'visible' : 'collapse';
 
+	for (var at = 1; at <= Kc.slots; ++at) {
+		var card = KcRow.FindChildTraverse('Kill' + at);
+		if (!card)
+			continue;
+		var visible = at <= shown;
+		var wasVisible = card.BHasClass('kc-visible');
+		card.SetHasClass('kc-visible', visible);
+		card.style.visibility = visible ? 'visible' : 'collapse';
+		if (visible)
+			KcSetCardArt(card, KcHeadshot(cards, at));
+		if (visible && !wasVisible && kills > KcLastCount)
+			KcPop(card);
+	}
+
+	var more = KcRow.FindChildTraverse('KillMore');
+	if (more) {
+		more.style.visibility = extra ? 'visible' : 'collapse';
+		if (extra) {
+			var countLabel = KcRow.FindChildTraverse('KillMoreCount');
+			if (countLabel) {
+				var total = cards.FindChildTraverse('hud-HA-kill-count');
+				var n = total ? parseInt(total.text, 10) : 0;
+				countLabel.text = String(isFinite(n) && n > 0 ? n : kills);
+			}
+		}
+	}
+
+	KcLastCount = kills;
 	return true;
 };
 
-KcBuild();
-
 KcParkFx();
-KcApply();
 var KcGeneration = (typeof KcGeneration === 'undefined' ? 0 : KcGeneration) + 1;
 
 var KcTick = function (generation) {
 	if (generation !== KcGeneration)
 		return;
 	try {
+		var parent = KcParent();
+		if ((!KcRow || !KcRow.IsValid()) && parent)
+			KcRow = KcBuild(parent);
 		KcApply();
 	} catch (error) {
-			}
-	$.Schedule(0.25, function () {
+	}
+	$.Schedule(0.1, function () {
 		KcTick(generation);
 	});
 };
 
-$.Schedule(0.25, (function (generation) {
+$.Schedule(0.0, (function (generation) {
 	return function () {
 		KcTick(generation);
 	};

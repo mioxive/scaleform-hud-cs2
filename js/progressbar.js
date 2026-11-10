@@ -29,7 +29,7 @@ var Pb = {
 	infoFont: 22,
 	infoColor: '#ffffff',
 	infoOpacity: '0.9',
-	infoMarginLeft: 8,
+	infoMarginLeft: 0,
 	infoMarginTop: 3,
 
 	fade: 0.2,
@@ -115,54 +115,53 @@ PbSet(PbAnchor, 'zIndex', '20');
 
 var PbBar = $.CreatePanel('Panel', PbAnchor, 'Progress');
 PbBar.hittest = false;
-PbSet(PbBar, 'width', Pb.width + 'px');
-PbSet(PbBar, 'height', 'fit-children');
+var PbIconInset = -Pb.iconMargin;
+PbSet(PbBar, 'width', (Pb.width + PbIconInset) + 'px');
+PbSet(PbBar, 'height', Pb.iconSize + 'px');
 PbSet(PbBar, 'horizontalAlign', 'center');
 PbSet(PbBar, 'verticalAlign', 'top');
 PbSet(PbBar, 'marginTop', Pb.marginTop + 'px');
-PbSet(PbBar, 'marginLeft', Pb.marginLeft + 'px');
-PbSet(PbBar, 'backgroundColor', Pb.bg);
-PbSet(PbBar, 'flowChildren', 'right');
+PbSet(PbBar, 'marginLeft', (Pb.marginLeft - PbIconInset) + 'px');
+PbSet(PbBar, 'flowChildren', 'none');
 PbSet(PbBar, 'overflow', 'noclip');
 PbSet(PbBar, 'opacity', '0.0');
 PbSet(PbBar, 'transitionProperty', 'opacity');
 PbSet(PbBar, 'transitionDuration', Pb.fade + 's');
+PbSet(PbBar, 'transitionDelay', '0s');
 PbSet(PbBar, 'transitionTimingFunction', 'linear');
+
+var PbBackground = $.CreatePanel('Panel', PbBar, 'ProgressBackground');
+PbBackground.hittest = false;
+PbSet(PbBackground, 'x', PbIconInset + 'px');
+PbSet(PbBackground, 'width', Pb.width + 'px');
+PbSet(PbBackground, 'height', '100%');
+PbSet(PbBackground, 'backgroundColor', Pb.bg);
 
 var PbIcon = $.CreatePanel('Panel', PbBar, 'ProgressIcon');
 PbIcon.hittest = false;
 PbSet(PbIcon, 'width', Pb.iconSize + 'px');
 PbSet(PbIcon, 'height', Pb.iconSize + 'px');
-PbSet(PbIcon, 'marginLeft', Pb.iconMargin + 'px');
+PbSet(PbIcon, 'x', '0px');
 PbSet(PbIcon, 'verticalAlign', 'center');
 PbSet(PbIcon, 'zIndex', '1');
-PaintArt(PbIcon, 'alerticon', {size: 'contain'});
+for (var PbToken of ['defuseicon', 'alerticon']) {
+	var PbLayer = $.CreatePanel('Panel', PbIcon, 'ProgressIcon_' + PbToken);
+	PbLayer.hittest = false;
+	PbSet(PbLayer, 'width', '100%');
+	PbSet(PbLayer, 'height', '100%');
+	PaintArt(PbLayer, PbToken, {size: 'contain'});
+}
 
 var PbWarmOld = contextPanel.FindChildTraverse('ProgressWarm');
 if (PbWarmOld)
 	PbWarmOld.DeleteAsync(0);
-
-var PbWarm = $.CreatePanel('Panel', contextPanel, 'ProgressWarm');
-PbWarm.hittest = false;
-PbWarm.hittestchildren = false;
-PbSet(PbWarm, 'width', Pb.iconSize + 'px');
-PbSet(PbWarm, 'height', Pb.iconSize + 'px');
-PbSet(PbWarm, 'y', Pb.park + 'px');
-
-for (var PbToken of ['defuseicon', 'alerticon']) {
-	var PbWarmPanel = $.CreatePanel('Panel', PbWarm, 'ProgressWarm_' + PbToken);
-	PbWarmPanel.hittest = false;
-	PbSet(PbWarmPanel, 'width', Pb.iconSize + 'px');
-	PbSet(PbWarmPanel, 'height', Pb.iconSize + 'px');
-	PaintArt(PbWarmPanel, PbToken, {size: 'contain'});
-}
 
 var PbCol = $.CreatePanel('Panel', PbBar, 'ProgressCol');
 PbCol.hittest = false;
 PbSet(PbCol, 'flowChildren', 'down');
 PbSet(PbCol, 'width', Pb.textWidth + 'px');
 PbSet(PbCol, 'height', 'fit-children');
-PbSet(PbCol, 'marginLeft', Pb.rowMarginLeft + 'px');
+PbSet(PbCol, 'x', (Pb.iconSize + Pb.rowMarginLeft) + 'px');
 PbSet(PbCol, 'marginTop', Pb.rowMarginTop + 'px');
 
 var PbRow = $.CreatePanel('Panel', PbCol, 'ProgressRow');
@@ -261,6 +260,10 @@ var PbWatch = function () {
 		return;
 
 	var up = owner.BHasClass('hud-progress-bar--visible');
+	var defusing = owner.BHasClass('hud-progress-bar__defuse')
+		|| owner.BHasClass('hud-progress-bar__defuse-nokit');
+	PbSet(icon.FindChildTraverse('ProgressIcon_defuseicon'), 'visibility', defusing ? 'visible' : 'collapse');
+	PbSet(icon.FindChildTraverse('ProgressIcon_alerticon'), 'visibility', defusing ? 'collapse' : 'visible');
 
 	if (up) {
 		var raw = PbRead(PbCountdown(owner));
@@ -288,8 +291,6 @@ var PbWatch = function () {
 
 		PbWrite(time, raw);
 		PbWrite(info, PbRead(owner.FindChildTraverse('ActionLabel')));
-		PaintArt(icon, owner.BHasClass('hud-progress-bar__defuse') ? 'defuseicon' : 'alerticon',
-			{size: 'contain'});
 	}
 
 	var state = up ? 'up' : 'down';

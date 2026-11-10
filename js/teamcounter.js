@@ -1,3 +1,25 @@
+if (typeof CounterGeneration !== 'undefined')
+	++CounterGeneration;
+if (typeof CounterOnEvent === 'function')
+	CounterOnEvent = function () {};
+
+(function () {
+var previous = contextPanel.SfTeamCounterRuntime;
+if (previous && previous.dispose)
+	previous.dispose();
+var runtime = {active: true, timer: null, events: []};
+contextPanel.SfTeamCounterRuntime = runtime;
+runtime.dispose = function () {
+	runtime.active = false;
+	if (runtime.timer !== null) {
+		$.CancelScheduled(runtime.timer);
+		runtime.timer = null;
+	}
+	for (var event of runtime.events)
+		$.UnregisterForUnhandledEvent(event.name, event.handle);
+	runtime.events = [];
+};
+
 var TcRoot = function (counter) {
 	return counter || contextPanel.FindChildTraverse('HudTeamCounter');
 };
@@ -5,8 +27,11 @@ var TcRoot = function (counter) {
 var SetFailures = {};
 
 var Set = function (panel, property, value) {
+	if (!runtime.active || contextPanel.SfTeamCounterRuntime !== runtime)
+		return;
 	try {
-		panel.style[property] = value;
+		if (panel.style[property] !== value)
+			panel.style[property] = value;
 	} catch (error) {
 		if (!SetFailures[property]) {
 			SetFailures[property] = true;
@@ -21,8 +46,8 @@ var Tc = {
 	scoreCt: '#6f9ec4',
 	scoreT: '#b99636',
 	scoreGap: '1px',
-	aliveWidth: '54px',
-	aliveHeight: '54px',
+	aliveWidth: '55px',
+	aliveHeight: '55px',
 	aliveGap: '3px',
 	countSize: '40px',
 	aliveTextSize: '13px',
@@ -32,7 +57,7 @@ var Tc = {
 	scoreBgHeight: '27px',
 	scoreBgTop: '1px',
 	columnWidth: 75,
-	bombY: '-19px',
+	bombY: '-16px',
 	bombHeight: '84px',
 };
 
@@ -78,12 +103,21 @@ var StyleScore = function (counter) {
 		Set(gameTime, 'height', Tc.timerHeight);
 
 	var gap = parseInt(Tc.scoreGap, 10) || 0;
+	var compact = root.BHasClass('counter-compact');
+	var compactHeight = parseInt(Tc.timerHeight, 10) + gap + parseInt(Tc.scoreRowHeight, 10);
 
 	var scoreBgRight = Math.floor((Tc.columnWidth - gap) / 2);
 	var scoreBgLeft = Tc.columnWidth - gap - scoreBgRight;
 	var column = root.FindChildTraverse('ScoreAndTimeAndBomb');
-	if (column)
+	if (column) {
 		Set(column, 'width', Tc.columnWidth + 'px');
+		Set(column, 'height', compact ? compactHeight + 'px' : 'fit-children');
+		Set(column, 'verticalAlign', 'top');
+		Set(column, 'marginBottom', compact ? '0px' : '4px');
+	}
+	var scoreAndTime = root.FindChildTraverse('ScoreAndTime');
+	if (scoreAndTime)
+		Set(scoreAndTime, 'height', compact ? compactHeight + 'px' : 'fit-children');
 	if (timer)
 		Set(timer, 'width', (Tc.columnWidth - 2) + 'px');
 
@@ -165,7 +199,8 @@ var StyleCompact = function (counter, compact) {
 			}
 			Set(box, 'visibility', 'visible');
 			Set(box, 'width', Tc.aliveWidth);
-			Set(box, 'height', Tc.aliveHeight);
+			Set(box, 'height', (parseInt(Tc.timerHeight, 10) + (parseInt(Tc.scoreGap, 10) || 0)
+				+ parseInt(Tc.scoreRowHeight, 10)) + 'px');
 			Set(box, 'horizontalAlign', pair[2]);
 			Set(box, 'verticalAlign', 'top');
 			Set(box, 'marginLeft', Tc.aliveGap);
@@ -230,6 +265,8 @@ var StyleAvatars = function (counter) {
 };
 
 var CounterApply = function () {
+	if (!runtime.active || contextPanel.SfTeamCounterRuntime !== runtime)
+		return;
 	var counter = contextPanel.FindChildTraverse('HudTeamCounter');
 	if (!counter)
 		return;
@@ -246,46 +283,28 @@ var CounterApply = function () {
 	HideChrome(counter);
 };
 
-CounterApply();
-
-var CounterGeneration = (typeof CounterGeneration === 'undefined' ? 0 : CounterGeneration) + 1;
-
-var CounterTick = function (generation) {
-	if (generation !== CounterGeneration)
+var CounterTick = function () {
+	if (!runtime.active || contextPanel.SfTeamCounterRuntime !== runtime)
 		return;
 	try {
 		CounterApply();
 	} catch (error) {
 			}
-	$.Schedule(0.25, function () {
-		CounterTick(generation);
-	});
+	runtime.timer = $.Schedule(0.25, CounterTick);
 };
 
-$.Schedule(0.25, (function (generation) {
-	return function () {
-		CounterTick(generation);
-	};
-})(CounterGeneration));
-if (typeof CounterEvents === 'undefined') {
-	var CounterEvents = true;
-	var CounterOnEvent = function (what) {
-		try {
-			CounterApply();
-		} catch (error) {
-					}
-		$.Schedule(0.0, function () {
-			try {
-				CounterApply();
-			} catch (error) {
-							}
-		});
-	};
-	for (var eventName of ['OnRoundStart', 'OnRoundFreezeTimeEnd', 'Player_Death']) {
-		$.RegisterForUnhandledEvent(eventName, (function (name) {
-			return function () {
-				CounterOnEvent(name);
-			};
-		})(eventName));
-	}
+var CounterOnEvent = function () {
+	if (!runtime.active || contextPanel.SfTeamCounterRuntime !== runtime)
+		return;
+	if (runtime.timer !== null)
+		$.CancelScheduled(runtime.timer);
+	CounterTick();
+};
+for (var eventName of ['OnRoundStart', 'OnRoundFreezeTimeEnd', 'Player_Death']) {
+	runtime.events.push({
+		name: eventName,
+		handle: $.RegisterForUnhandledEvent(eventName, CounterOnEvent)
+	});
 }
+CounterTick();
+})();

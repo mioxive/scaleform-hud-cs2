@@ -113,6 +113,10 @@ ASSETS = [
     ('kHelmetIconPng', 'helmet_icon.png', ART / 'helmet_icon.png'),
     ('kHpRedPlatePng', 'hp_red.png', ART / 'hp_red.png'),
     ('kKillBadgePng', 'kill_badge.png', (23, 23, kill_badge(23, 23))),
+    ('kKillIconPng', 'kill_icon.png', ART / 'kill_icon.png'),
+    ('kKillIconHsPng', 'kill_icon_headshot.png', ART / 'kill_icon_headshot.png'),
+    ('kKillOutlinePng', 'kill_icon_outline.png', ART / 'kill_icon_outline.png'),
+    ('kWinStarPng', 'wp18_star.png', ART / 'wp18_star.png'),
     ('kWinPlateCtPng', 'win_ct.png', ART / 'win_ct.png'),
     ('kWinPlateTPng', 'win_t.png', ART / 'win_t.png'),
     ('kAlertIconPng', 'alert_icon.png', ART / 'alert_icon.png'),
@@ -121,6 +125,12 @@ ASSETS = [
     ('kGotvCtPng', 'gotv_ct.png', ART / 'gotv_ct.png'),
     ('kGotvTPng', 'gotv_t.png', ART / 'gotv_t.png'),
 ]
+
+
+WEAPONS_DIR = ART / 'weapons'
+for _wpn in sorted(WEAPONS_DIR.glob('wpn_*.png')) if WEAPONS_DIR.is_dir() else []:
+    _sym = 'k' + ''.join(part.capitalize() for part in _wpn.stem.split('_')) + 'Png'
+    ASSETS.append((_sym, _wpn.name, _wpn))
 
 
 def make_scripts():

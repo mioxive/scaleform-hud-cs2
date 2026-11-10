@@ -228,6 +228,20 @@ var WsRow = function (row) {
 		}
 
 		for (var icon of item.FindChildrenWithClassTraverse('weapon-selection-item-icon-main')) {
+			var wpnName = '';
+			try {
+				var iconSrc = String(icon.src || '');
+				if (iconSrc) {
+					wpnName = iconSrc.substring(iconSrc.lastIndexOf('/') + 1)
+						.replace(/\.(vsvg|vtex|svg|png|vsvg_c|vtex_c)$/i, '');
+				}
+			} catch (wsErr) {
+			}
+			var wpnFile = (typeof WpnIconFile === 'function') ? WpnIconFile(wpnName) : null;
+			if (wpnFile && icon.WpnSrc !== wpnFile) {
+				icon.WpnSrc = wpnFile;
+				icon.SetImage(ArtUrl(wpnFile));
+			}
 			WsOnce(icon, 'ws-icon', function (panel) {
 				panel.style.transform = iconTransform;
 				panel.style.opacity = '1.0';
